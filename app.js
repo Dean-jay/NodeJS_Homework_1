@@ -1,140 +1,69 @@
-/**
- * 0. folder 만들어 줌 : 파일이 있다는 것을 읽어야함
- * 0-1.
- * 1. 파일 읽어서 경로 새로 넣어줌 : rename
- * 2. 이전 파일 삭제
- */
-const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const fs = require('fs');
 
-console.log(__dirname);
-console.log(__filename);
+console.log(process.argv);
+const folder = process.argv[2];
+const workingDir = path.join(os.homedir(), 'Pictures', folder);
+console.log(workingDir);
+if (!folder || !fs.existsSync(workingDir)) {
+  console.error('Please enter folder name in Pictures');
+  return;
+}
 
-const dir = 'test';
+console.log(workingDir);
 
-////////////////////////////////////////
-// 폴더 만들기 : 비동기로 만들어서 그런지 조건이 안 먹힌다...
+const videoDir = path.join(workingDir, 'video');
+const capturedDir = path.join(workingDir, 'captured');
+const duplicatedDir = path.join(workingDir, 'duplicated');
 
-// fs.mkdir(path.join(__dirname, 'test/video'), (err) => {
-//   if (err) {
-//     return console.error(err);
-//   }
-// });
-// fs.mkdir(path.join(__dirname, 'test/captured'), (err) => {
-//   if (err) {
-//     return console.error(err);
-//   }
-// });
-// fs.mkdir(path.join(__dirname, 'test/duplicated'), (err) => {
-//   if (err) {
-//     return console.error(err);
-//   }
-// });
-//////////////////////////////////////////
-// 어떤 파일이 있는지 확인
-// 파일 확인 후 전송
+!fs.existsSync(videoDir) && fs.mkdirSync(videoDir);
+!fs.existsSync(capturedDir) && fs.mkdirSync(capturedDir);
+!fs.existsSync(duplicatedDir) && fs.mkdirSync(duplicatedDir);
 
-fs.readdir(dir, (err, files) => {
-  if (err) console.log(err);
-  else {
-    console.log('Filenames with the .txt extension:');
-    files.forEach((file) => {
-      if (path.extname(file) == '.mov' || path.extname(file) == '.mp4') {
-        console.log(file);
-        //video move
-        fs.copyFile('./test/' + file, './test/video/' + file, (err) => {
-          if (err) {
-            return console.error(err);
-          }
-        });
-        //old video delete
-        fs.rm('./test/' + file, (err) => {
-          if (err) {
-            return console.error(err);
-          }
-        });
-      } else if (path.extname(file) == '.png' || path.extname(file) == '.aae') {
-        // captured move
-        fs.copyFile('./test/' + file, './test/captured/' + file, (err) => {
-          if (err) {
-            return console.error(err);
-          }
-        });
-        //old video delete
-        fs.rm('./test/' + file, (err) => {
-          if (err) {
-            return console.error(err);
-          }
-        });
-      } else if (path.extname(file) == '.jpg' && file.includes('_E')) {
-        // duplicated move
-        fs.copyFile('./test/' + file, './test/duplicated/' + file, (err) => {
-          if (err) {
-            return console.error(err);
-          }
-        });
-        //duplicated delete
-        fs.rm('./test/' + file, (err) => {
-          if (err) {
-            return console.error(err);
-          }
-        });
-      }
-    });
+fs.promises.readdir(workingDir).then(processFiles).catch(console.log);
+
+function processFiles(files) {
+  files.forEach((file) => {
+    if (isVideoFile(file)) {
+      move(file, videoDir);
+    } else if (isCapturedFile(file)) {
+      move(file, capturedDir);
+    } else if (isDuplicatedFile(files, file)) {
+      move(file, duplicatedDir);
+    } else {
+      console.log(file);
+    }
+  });
+}
+
+function isVideoFile(file) {
+  const regExp = /(mp4|mov)$/gm;
+  const match = file.match(regExp);
+  return !!match; // true or false
+}
+function isCapturedFile(file) {
+  const regExp = /(png|aae)$/gm;
+  const match = file.match(regExp);
+  return !!match;
+}
+function isDuplicatedFile(files, file) {
+  if (!file.startsWith('IMG_') || file.startsWith('IMG_E')) {
+    return false;
   }
-});
-//////////////////////////////
-// copy
+  const edited = `IMG_E${file.split('_')[1]}`;
+  const found = files.find((f) => f.includes(edited));
+  return !!found;
+  // return true;
+}
 
-// fs.copyFile('./file.txt', './file2.txt', (err) => {
-//   if (err) {
-//     return console.error(err);
-//   }
-// });
-
-// readStream 을 이용한 copy : 아직 구현 안됨.
-
-// function copy(oldPath, newPath) {
-// var readStream = fs.createReadStream(oldPath);
-// var writeStream = fs.createWriteStream(newPath);
-
-// readStream.on('error', callback);
-// writeStream.on('error', callback);
-
-//   readStream.on('close', function () {
-//     fs.unlink(oldPath, callback);
-//   });
-
-//   readStream.pipe(writeStream);
-// }
-
-// function videoFileMove(files) {
-// }
-// function capturedFileMove() {}
-// function duplicatedFileMove() {}
-// function move(oldPath, newPath) {}
-
-//////////////////////////////////////////
-// 파일 서칭
-
-// 전체 파일 : string
-// fs.readdir(dir, (err, files) => {
-//   if (err) console.log(err);
-//   else {
-//     console.log('\nCurrent directory filenames:');
-//     files.forEach((file) => {
-//       console.log(file);
-//     });
-//   }
-// });
-
-// 전체 파일 : Object
-// fs.readdir(dir, { withFileTypes: true }, (err, files) => {
-//   console.log('\nCurrent directory files:');
-//   if (err) console.log(err);
-//   else {
-//     files.forEach((file) => {
-//       console.log(file);
-//     });
-//   }
-// });
+function move(file, targetDir) {
+  // fs.rename(workingDir + '/' + file, targetDir + '/' + file, (error) => {
+  //   console.error;
+  // });
+  // promises를 사용하면 장점이 무엇일까?
+  console.info(`move ${file} to ${path.basename(targetDir)}`);
+  const oldPass = path.join(workingDir, file);
+  const newPass = path.join(targetDir, file);
+  fs.promises.rename(oldPass, newPass).catch(console.error);
+}
